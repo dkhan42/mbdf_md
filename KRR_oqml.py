@@ -1,3 +1,4 @@
+import numpy as np
 from qml.math import svd_solve
 from scipy.linalg import cho_solve
 from qml.kernels import get_atomic_local_kernel, get_atomic_local_gradient_kernel
