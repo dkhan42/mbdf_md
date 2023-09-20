@@ -387,7 +387,8 @@ def angular_gradients(size, atom_index, z, atom, charges, coods, cutoff_r, astep
 
                             atm = Rij_norm*Rik_norm*Rkj_norm
 
-                            charge = z1*z2*z3
+                            #charge = z1*z2*z3
+                            charge=1
 
                             x = costheta - costhetajik
                             x2 = x**2
@@ -396,6 +397,13 @@ def angular_gradients(size, atom_index, z, atom, charges, coods, cutoff_r, astep
                             index=0
 
                             gRij, gRik = gradRij(Ri, Rj, Rij_norm), gradRij(Ri, Rk, Rik_norm)
+                            gRji, gRjk = gradRji(Rj, Ri, Rij_norm), gradRji(Rj, Rk, Rkj_norm)
+
+                            fcutij, fcutik, fcutjk = fcut(Rij_norm, cutoff_r), fcut(Rik_norm, cutoff_r), fcut(Rkj_norm, cutoff_r)
+                            fcut_tot = fcutij*fcutik*fcutjk
+                            gfcutij, gfcutik, gfcutjk = gradFcut(Rij_norm, cutoff_r), gradFcut(Rik_norm, cutoff_r), gradFcut(Rkj_norm, cutoff_r)
+                            gfcut_tot_i = (gfcutij*gRij*fcutik*fcutjk) + (gfcutik*gRik*fcutij*fcutjk) 
+                            gfcut_tot_j = (gfcutij*gRji*fcutik*fcutjk) + (gfcutjk*gRjk*fcutik*fcutij)
                             
                             gCosjik = gradCosAngi(Ri, Rj, Rk, Rij_norm, Rik_norm, Rkj_norm, gRij, gRik, costhetajik, 'jik')
                             gCoskji = gradCosAngi(Ri, Rj, Rk, Rij_norm, Rik_norm, Rkj_norm, gRij, gRik, costhetakji, 'kji')
@@ -411,9 +419,6 @@ def angular_gradients(size, atom_index, z, atom, charges, coods, cutoff_r, astep
 
                             denom1, denom2, denom3 = atm**n1, atm**n2, np.exp(n3*(Rij_norm**2 + Rik_norm**2 + Rkj_norm**2)) 
                             
-
-                            gRji, gRjk = gradRji(Rj, Ri, Rij_norm), gradRji(Rj, Rk, Rkj_norm)
-
                             gCosjik2 = gradCosAngj(Ri, Rj, Rk, Rij_norm, Rik_norm, Rkj_norm, gRji, gRjk, costhetajik, 'jik')
                             gCoskji2 = gradCosAngj(Ri, Rj, Rk, Rij_norm, Rik_norm, Rkj_norm, gRji, gRjk, costhetakji, 'kji')
                             gCosikj2 = gradCosAngj(Ri, Rj, Rk, Rij_norm, Rik_norm, Rkj_norm, gRji, gRjk, costhetaikj, 'ikj')
@@ -435,64 +440,67 @@ def angular_gradients(size, atom_index, z, atom, charges, coods, cutoff_r, astep
 
                             for l in range(order+1):
                                 h = hermite_polynomial(x, l, a)
-                                pref = charge*exponent*h
+                                pref = charge*exponent*h*fcut_tot
                                 g0 = num1/denom1
                                 
-                                if order==0:
+                                if l==0:
                                     gradi = gradi0
                                     gradj = gradj0
-                                elif order==1:
+                                elif l==1:
                                     gradi = h*gradi0 - (2*a*gCosjik)
                                     gradj = h*gradj0 - (2*a*gCosjik2)
-                                elif order==2:
+                                elif l==2:
                                     gradi = h*gradi0 + (8*a2*(-x)*gCosjik)
                                     gradj = h*gradj0 + (8*a2*(-x)*gCosjik2)
-                                elif order==3:
+                                elif l==3:
                                     temp = 2*a2*x2 - 1
                                     gradi = h*gradi0 + (12*a*temp*gCosjik)
                                     gradj = h*gradj0 + (12*a*temp*gCosjik2)
 
-                                f1[index] += pref*g0
-                                df1[index] += gradi*g0*charge
-                                df2[index][j] += gradj*g0*charge
+                                fn = pref*g0
+                                f1[index] += fn
+                                df1[index] += (gradi*g0*charge*fcut_tot) + (fn*gfcut_tot_i)
+                                df2[index][j] += (gradj*g0*charge*fcut_tot) + (fn*gfcut_tot_j)
                                 index+=1
 
-                                if order==0:
+                                if l==0:
                                     gradi = gradi1
                                     gradj = gradj1
-                                elif order==1:
+                                elif l==1:
                                     gradi = h*gradi1 - (2*a*gCosjik)
                                     gradj = h*gradj1 - (2*a*gCosjik2)
-                                elif order==2:
+                                elif l==2:
                                     gradi = h*gradi1 + (8*a2*(-x)*gCosjik)
                                     gradj = h*gradj1 + (8*a2*(-x)*gCosjik2)
-                                elif order==3:
+                                elif l==3:
                                     temp = 2*a2*x2 - 1
                                     gradi = h*gradi1 + (12*a*temp*gCosjik)
                                     gradj = h*gradj1 + (12*a*temp*gCosjik2)
                                     
-                                f1[index] += (g1_num*pref)/denom2
-                                df1[index] += (charge*gradi)/denom2
-                                df2[index][j] += (charge*gradj)/denom2
+                                fn = (g1_num*pref)/denom2
+                                f1[index] += fn
+                                df1[index] += ((charge*gradi*fcut_tot)/denom2) + (fn*gfcut_tot_i)
+                                df2[index][j] += ((charge*gradj*fcut_tot)/denom2) + (fn*gfcut_tot_j)
                                 index+=1
 
-                                if order==0:
+                                if l==0:
                                     gradi = gradi2
                                     gradj = gradj2
-                                elif order==1:
+                                elif l==1:
                                     gradi = h*gradi2 - (2*a*gCosjik)
                                     gradj = h*gradj2 - (2*a*gCosjik2)
-                                elif order==2:
+                                elif l==2:
                                     gradi = h*gradi2 + (8*a2*(-x)*gCosjik)
                                     gradj = h*gradj2 + (8*a2*(-x)*gCosjik2)
-                                elif order==3:
+                                elif l==3:
                                     temp = 2*a2*x2 - 1
                                     gradi = h*gradi2 + (12*a*temp*gCosjik)
                                     gradj = h*gradj2 + (12*a*temp*gCosjik2)
                                 
-                                f1[index] += pref*g2_num/denom3
-                                df1[index] += gradi*charge
-                                df2[index][j] += gradj*charge
+                                fn = pref*g2_num/denom3
+                                f1[index] += fn
+                                df1[index] += (gradi*charge*fcut_tot) + (fn*gfcut_tot_i)
+                                df2[index][j] += (gradj*charge*fcut_tot) + (fn*gfcut_tot_j)
                                 index+=1
 
         darr2[i,:,:,:] = df2    
@@ -517,6 +525,14 @@ def angular_gradients(size, atom_index, z, atom, charges, coods, cutoff_r, astep
     #print(np.array(rep).shape, drep.shape)
     return np.array(rep), drep    
 
+
+@numba.jit(nopython=True)
+def fcut(Rij, rcut):
+    return 0.5*(np.cos((np.pi*Rij)/rcut)+1)
+
+@numba.jit(nopython=True)
+def gradFcut(Rij, rcut):
+    return (-np.pi*np.sin((np.pi*Rij)/rcut))/(2*rcut)
 
 @numba.jit(nopython=True)
 def radial_gradients(size, z, atom, atom_index, charges, coods, cutoff_r, rlength,step_r, order = 2, a=1,eta=10.8,alpha=1.5,pow1=3.0,pow2=6.0):
@@ -550,40 +566,47 @@ def radial_gradients(size, z, atom, atom_index, charges, coods, cutoff_r, rlengt
                 x2 = x**2
                 gradientRij = gradRij(Ri, Rj, Rij_norm)
                 gradientRji = gradRji(Rj, Ri, Rij_norm)
+                fcutrij = fcut(dist, cutoff_r)
+                gradfcut = gradFcut(dist, cutoff_r)
+                gradfcuti = gradfcut*gradientRij
+                gradfcutj = gradfcut*gradientRji
 
                 for k in range(order+1):
                     h = hermite_polynomial(x, k, a)
-                    pref = charge*exponent*h
-                    if order==0:
+                    pref = charge*exponent*h*fcutrij
+                    if k==0:
                         pref2 = a*charge
                         grad = 2*pref2*gradientRij*exponent*dist
                         gradj = 2*pref2*gradientRji*exponent*dist
-                    elif order==1:
+                    elif k==1:
                         pref2 = -2*a*charge
                         grad = pref2*gradientRij*exponent*(2*a*(x2) - 1)
                         gradj = pref2*gradientRji*exponent*(2*a*(x2) - 1)
-                    elif order==2:
+                    elif k==2:
                         pref2 = -4*a2*charge
                         grad = pref2*gradientRij*exponent*(-x*(2*a*x2 - 3))
                         gradj = pref2*gradientRji*exponent*(-x*(2*a*x2 - 3))
-                    elif order==3:
+                    elif k==3:
                         pref2 = 4*a2*charge
                         grad = pref2*gradientRij*exponent*(2*a*x2*(3 - 2*a*x2) + 6*a*x2 - 3)
                         gradj = pref2*gradientRji*exponent*(2*a*x2*(3 - 2*a*x2) + 6*a*x2 - 3)
-                    g = np.exp(-eta*r) - pref/(2.2508*(r+1)**pow1) 
-                    f1[index] += pref*g
-                    df1[index] += grad*g
-                    darr2[i,index,j,:] += gradj*g
+                    g = np.exp(-eta*r) - 1/(2.2508*((r+1)**pow1))
+                    fnr = pref*g 
+                    f1[index] += fnr*fcutrij
+                    df1[index] += (grad*g*fcutrij) + (fnr*gradfcuti)
+                    darr2[i,index,j,:] += (gradj*g*fcutrij) + (fnr*gradfcutj)
                     index+=1
-                    g = 2.2508*(r+1)**pow2
-                    f1[index] += pref/g
-                    df1[index] += grad/g
-                    darr2[i,index,j,:] += gradj/g
+                    g = 2.2508*((r+1)**pow2)
+                    fnr = pref/g
+                    f1[index] += fnr*fcutrij
+                    df1[index] += (grad*fcutrij/g) + (fnr*gradfcuti)
+                    darr2[i,index,j,:] += (gradj*fcutrij/g) + (fnr*gradfcutj)
                     index+=1
                     g = np.exp(-alpha*r)
-                    f1[index] += pref*g
-                    df1[index] += grad*g
-                    darr2[i,index,j,:] += gradj*g
+                    fnr = pref*g
+                    f1[index] += fnr*fcutrij
+                    df1[index] += (grad*g*fcutrij) + (fnr*gradfcuti)
+                    darr2[i,index,j,:] += (gradj*g*fcutrij) + (fnr*gradfcutj)
                     index+=1
         
         r+=step_r
@@ -607,31 +630,42 @@ def radial_gradients(size, z, atom, atom_index, charges, coods, cutoff_r, rlengt
 
 
 @numba.jit(nopython=True)
-def mbdf_with_gradients(charges,coods,grid1,grid2,rlength,alength,style,astep,order=3,pad=29,step_r=0.1,cutoff_r=12,angular_scaling1=4.0,angular_scaling2=4.0,eta=10.8,alpha=1.5,pow1=3.0,pow2=6.0,a1=1.0,a2=1.2,zeta=1.0, lam=1.0, angular_scaling3=1.0):
+def mbdf_with_gradients(charges,coods,grid1,grid2,rlength,alength,astep,order=3,pad=29,step_r=0.1,cutoff_r=12,angular_scaling1=4.0,angular_scaling2=4.0,eta=10.8,alpha=1.5,pow1=3.0,pow2=6.0,a1=1.0,a2=1.2,zeta=1.0, lam=1.0, angular_scaling3=1.0,radial_only=False):
     """
     returns the local MBDF representation along with its gradients for a molecule
     """
     size = len(charges)
     nr, na = 3*(order+1), 3*(order+1)
-    desc_size = nr+na
-    rep = np.zeros((pad, desc_size))
-    drep = np.zeros((pad, desc_size, pad, 3))
-
-    for i in range(size):
-        #try:
-        #print(rep[i][:nr].shape, drep[i,:nr,:size,:].shape)
-        rep[i][:nr], drep[i,:nr,:size,:] = radial_gradients(size, charges[i], coods[i], i, charges, coods, cutoff_r, rlength, step_r, order, a1, eta, alpha, pow1, pow2)
-        #print(rep[i][nr:nr+na].shape, drep[i,nr:nr+na,:size,:].shape)
-        rep[i][nr:nr+na], drep[i,nr:nr+na,:size,:] = angular_gradients(size, i, charges[i], coods[i], charges, coods, cutoff_r, astep, order, alength, a2, grid1, grid2, angular_scaling1, angular_scaling2, zeta, lam, angular_scaling3)
-        #except:
-        #    temp3, temp4 = radial_gradients(size, charges[i], coods[i], i, charges, coods, cutoff_r, rlength, step_r, order, a1, eta, alpha, pow1, pow2)
-        #
-        #    temp1, temp2 = angular_gradients(size, i, charges[i], coods[i], charges, coods, cutoff_r, astep, order, alength, a2, grid1, grid2, angular_scaling1, angular_scaling2, zeta, lam, angular_scaling3)
-        #    print(temp3.shape, temp4.shape, temp1.shape, temp2.shape)
-        #    break
-    #drep[i,nr:nr+na,:size,:] = temp
+    if radial_only==False:
+        desc_size = nr+na
+        rep = np.zeros((pad, desc_size))
+        drep = np.zeros((pad, desc_size, pad, 3))
+    
+        for i in range(size):
+            #try:
+            #print(rep[i][:nr].shape, drep[i,:nr,:size,:].shape)
+            rep[i][:nr], drep[i,:nr,:size,:] = radial_gradients(size, charges[i], coods[i], i, charges, coods, cutoff_r, rlength, step_r, order, a1, eta, alpha, pow1, pow2)
+            #print(rep[i][nr:nr+na].shape, drep[i,nr:nr+na,:size,:].shape)
+            rep[i][nr:nr+na], drep[i,nr:nr+na,:size,:] = angular_gradients(size, i, charges[i], coods[i], charges, coods, cutoff_r, astep, order, alength, a2, grid1, grid2, angular_scaling1, angular_scaling2, zeta, lam, angular_scaling3)
+            #except:
+            #    temp3, temp4 = radial_gradients(size, charges[i], coods[i], i, charges, coods, cutoff_r, rlength, step_r, order, a1, eta, alpha, pow1, pow2)
+            #
+            #    temp1, temp2 = angular_gradients(size, i, charges[i], coods[i], charges, coods, cutoff_r, astep, order, alength, a2, grid1, grid2, angular_scaling1, angular_scaling2, zeta, lam, angular_scaling3)
+            #    print(temp3.shape, temp4.shape, temp1.shape, temp2.shape)
+            #    break
+        #drep[i,nr:nr+na,:size,:] = temp
+    else:
+        desc_size = nr
+        rep = np.zeros((pad, desc_size))
+        drep = np.zeros((pad, desc_size, pad, 3))
+    
+        for i in range(size):
+            #try:
+            #print(rep[i][:nr].shape, drep[i,:nr,:size,:].shape)
+            rep[i][:nr], drep[i,:nr,:size,:] = radial_gradients(size, charges[i], coods[i], i, charges, coods, cutoff_r, rlength, step_r, order, a1, eta, alpha, pow1, pow2)
 
     return rep, drep
+
 
 @numba.jit(nopython=True)
 def mbdf_local(charges,coods,grid1,grid2,rlength,alength,style,order=3,pad=29,step_r=0.1,cutoff_r=12,angular_scaling1=4.0,angular_scaling2=4.0,eta=10.8,alpha=1.5,pow1=3.0,pow2=6.0,a1=1.0,a2=1.2,zeta=1.0, lam=1.0, angular_scaling3=1.0):
@@ -753,6 +787,7 @@ def normalize_with_gradients(A, dA,normal='mean'):
         for i in range(A.shape[2]):
             
             avg = np.mean(A[:,:,i])
+            
 
             if avg!=0.0:
                 A_temp[:,:,i] = A[:,:,i]/avg
@@ -765,12 +800,17 @@ def normalize_with_gradients(A, dA,normal='mean'):
         for i in range(A.shape[2]):
             
             diff1 = np.abs(np.max(A[:,:,i])-np.min(A[:,:,i]))
-            diff2 = np.abs(np.max(dA[:,:,i,:,:]) - np.min(dA[:,:,i,:,:]))
+            #diff2 = np.abs(np.max(dA[:,:,i,:,:]) - np.min(dA[:,:,i,:,:]))
 
-            if diff1!=0.0 and diff2!=0.0:
+            #if diff1!=0.0 and diff2!=0.0:
+            #    A_temp[:,:,i] = A[:,:,i]/diff1
+#
+            #    dA[:,:,i,:,:] = dA[:,:,i,:,:]/diff2
+
+            if diff1!=0.0:
                 A_temp[:,:,i] = A[:,:,i]/diff1
 
-                dA[:,:,i,:,:] = dA[:,:,i,:,:]/diff2
+                dA[:,:,i,:,:] = dA[:,:,i,:,:]/diff1
             
             else:
                 pass
@@ -813,7 +853,7 @@ def normalize(A,normal='mean'):
 
 from joblib import Parallel, delayed
 
-def generate_mbdf(nuclear_charges,coords,style,order=2,local=True, gradients=False,n_jobs=-1,pad=None,step_r=0.1,cutoff_r=8.0,step_a=0.02,a1=1.0,a2=2.0,angular_scaling=4,normalized='min-max',progress_bar=False,angular_scaling1=4,angular_scaling2=4,eta=10.8,alpha=1.5,pow1=3,pow2=6,a=1,b=1,c=1,d=1,zeta=1.0, lam=1.0, angular_scaling3=1.0):
+def generate_mbdf(nuclear_charges,coords,radial_only=False,order=3,local=True, gradients=True,n_jobs=-1,pad=None,step_r=0.04,cutoff_r=8.0,step_a=0.01,a1=1.0,a2=2.0,angular_scaling=4,normalized='min-max',progress_bar=False,angular_scaling1=4,angular_scaling2=4,eta=10.8,alpha=1.5,pow1=3,pow2=6,a=1,b=1,c=1,d=1,zeta=1.0, lam=1.0, angular_scaling3=1.0):
     """
     Generates the local MBDF representation arrays for a set of given molecules
 
@@ -876,7 +916,7 @@ def generate_mbdf(nuclear_charges,coords,style,order=2,local=True, gradients=Fal
             from tqdm import tqdm
 
             if gradients:
-                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_with_gradients)(charge,cood,grid1,grid2,rlength,alength,style,step_a,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3) for charge, cood in tqdm(list(zip(charges, coords))))    
+                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_with_gradients)(charge,cood,grid1,grid2,rlength,alength,step_a,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3, radial_only) for charge, cood in tqdm(list(zip(charges, coords))))    
                 
                 #mbdf = []
                 #for charge, cood in tqdm(list(zip(charges, coords))):
@@ -895,7 +935,7 @@ def generate_mbdf(nuclear_charges,coords,style,order=2,local=True, gradients=Fal
             
             else:
                 
-                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_local)(charge,cood,grid1,grid2,rlength,alength,style,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3) for charge,cood in tqdm(list(zip(charges,coords))))
+                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_local)(charge,cood,grid1,grid2,rlength,alength,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3) for charge,cood in tqdm(list(zip(charges,coords))))
                 mbdf = np.array(mbdf)
                 
                 if normalized==False:
@@ -907,7 +947,7 @@ def generate_mbdf(nuclear_charges,coords,style,order=2,local=True, gradients=Fal
 
         else:
             if gradients:
-                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_with_gradients)(charge,cood,grid1,grid2,rlength,alength,style,step_a,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3) for charge, cood in list(zip(charges, coords)))    
+                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_with_gradients)(charge,cood,grid1,grid2,rlength,alength,step_a,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3, radial_only) for charge, cood in list(zip(charges, coords)))    
                 
                 rep, drep = [], []
                 for i in range(len(mbdf)):
@@ -922,7 +962,7 @@ def generate_mbdf(nuclear_charges,coords,style,order=2,local=True, gradients=Fal
             
             else:
                 
-                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_local)(charge,cood,grid1,grid2,rlength,alength,style,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3) for charge,cood in list(zip(charges,coords)))
+                mbdf = Parallel(n_jobs=n_jobs)(delayed(mbdf_local)(charge,cood,grid1,grid2,rlength,alength,order,pad,step_r,cutoff_r,angular_scaling1,angular_scaling2,eta,alpha,pow1,pow2,a1,a2,zeta, lam, angular_scaling3) for charge,cood in list(zip(charges,coords)))
                 mbdf = np.array(mbdf)
                 
                 if normalized==False:
@@ -961,3 +1001,389 @@ def generate_mbdf(nuclear_charges,coords,style,order=2,local=True, gradients=Fal
             mbdf = np.array([mat.ravel(order='F') for mat in arr])
             
             return mbdf
+
+
+@numba.jit(nopython=True)
+def wKDE(rep,bin,bandwidth,kernel,scaling=False):
+    """
+    returns the weighted kernel density estimate for a given array and bins
+    """
+    if kernel=='gaussian':
+        if scaling=='root':
+            a = bin.reshape(-1,1)-rep
+            
+            basis = np.exp(-(a**2)/bandwidth)
+            
+            k = (np.sqrt(np.abs(rep)))*basis
+            
+            return np.sum(k,axis=1)
+
+        else:
+            a = bin.reshape(-1,1)-rep
+            
+            basis = np.exp(-(a**2)/bandwidth)
+            
+            return np.sum(basis,axis=1)
+
+    elif kernel=='laplacian':
+        if scaling=='root':
+            a = bin.reshape(-1,1)-rep
+            
+            basis = np.exp(-(np.abs(a))/bandwidth)
+            
+            k = (np.abs(rep))*basis
+            
+            return np.sum(k,axis=1)
+
+        else:
+            a = bin.reshape(-1,1)-rep
+            
+            basis = np.exp(-(np.abs(a))/bandwidth)
+            
+            return np.sum(basis,axis=1)
+
+
+def density_estimate(reps,nuclear_charges,keys,bin,bandwidth,kernel='gaussian',scaling='root'):
+    """
+    returns the density functions of MBDF functionals for a set of given molecules.
+    """
+    
+    size=len(bin)
+    big_rep=np.zeros((reps.shape[0],size*len(keys)))
+    
+
+    if kernel=='gaussian':
+        for i in range(len(nuclear_charges)):
+
+            for j,k in enumerate(keys):
+                ii = np.where(nuclear_charges[i] == k)[0]
+
+                if len(ii)!=0:
+                    big_rep[i,j*size:(j+1)*size]=wKDE(reps[i][ii]/k,bin,bandwidth,kernel,scaling)
+
+                else:
+                    big_rep[i,j*size:(j+1)*size]=np.zeros(size)
+
+    return big_rep
+
+
+def generate_df(mbdf,nuclear_charges,bw=0.07,binsize=0.2,kernel='gaussian'):
+    """
+    Generates the Density of Functionals representation for a given set of molecules. Requires their MBDF arrays as input
+    
+    :param mbdf: array of arrays containing the MBDF representation matrices for all molecules in the dataset
+    :type mbdf: numpy array, output of the generate_mbdf function can be directly used here
+    :param nuclear_charges: array of arrays of nuclear_charges for all molecules in the dataset, should be in the same order as in the MBDF arrays
+    :type nuclear_charges: numpy array NxM, where N is the number of molecules and M is the number of atoms (can be different for each molecule)
+    :param bw: the bandwidth hyper-parameter of the kernel density estimate
+    :type bw: float
+    :param binsize: grid-spacing used for discretizing the density function
+    :type binsize: float
+    :param kernel: kernel function to be used in the kernel density estimation
+    :type kernel: string
+
+    :return: NxM array containing the M dimensional representation vectors for N molecules
+    """
+    fs=mbdf.shape[-1]
+
+    reps=[10*mbdf[:,:,i]/(np.max(np.abs(mbdf[:,:,i]))) for i in range(fs)]
+    
+    keys=np.unique(np.concatenate(nuclear_charges))
+    
+    bin=np.arange(-10,10,binsize)
+    
+    gridsize=len(keys)*len(bin)
+    
+    kde=np.zeros((mbdf.shape[0],gridsize*fs))
+    
+    for i in range(fs):
+        kde[:,i*gridsize:(i+1)*gridsize]=density_estimate(reps[i],nuclear_charges,keys,bin,bw,kernel)
+    
+    return kde
+
+@numba.jit(nopython=True)
+def generate_CM(cood,charges,pad):
+    size=len(charges)
+    cm=np.zeros((pad,pad))
+    for i in range(size):
+        for j in range(size):
+            if i==j:
+                cm[i,j]=0.5*(charges[i]**(2.4))
+            else:
+                dist=np.linalg.norm(cood[i,:]-cood[j,:])
+                
+                cm[i,j]=(charges[i]*charges[j])/dist
+    summation = np.array([sum(x**2) for x in cm])
+    sorted_mat = cm[np.argsort(summation)[::-1,],:]    
+    return sorted_mat.ravel()
+
+
+from math import comb,cos
+from itertools import combinations, product
+
+
+def generate_bob(elements,coords,n_jobs=-1,asize={'C': 7, 'H': 16, 'N': 3, 'O': 3, 'S': 1}):
+    """
+    generates the Bag of Bonds representation
+    :param elements: array of arrays of chemical element symbols for all molecules in the dataset
+    :type elements: numpy array NxM, where N is the number of molecules and M is the number of atoms (can be different for each molecule)
+    :param coords: array of arrays of input coordinates of the atoms
+    :type coords: numpy array NxMx3, where N is the number of molecules and M is the number of atoms (can be different for each molecule)
+    :param n_jobs: number of cores to parallelise the representation generation over. Default value is -1 which uses all cores in the system
+    :type n_jobs: integer
+    :param asize: The maximum number of atoms of each element type supported by the representation
+    :type asize: dictionary
+
+    :return: NxD array of D-dimensional BoB vectors for the N molecules
+    :rtype: numpy array
+    """
+    from tqdm import tqdm
+
+    bob_arr = Parallel(n_jobs=n_jobs)(delayed(bob)(atoms,coods,asize) for atoms,coods in tqdm(list(zip(elements,coords))))
+
+    return np.array(bob_arr)
+
+def bob(atoms,coods, asize={'C': 7, 'H': 16, 'N': 3, 'O': 3, 'S': 1}):
+    keys=list(asize.keys()) 
+    elements={'C':[[],6],'H':[[],1],'N':[[],7],'O':[[],8],'F':[[],9],'P':[[],15],'S':[[],16],'Cl':[[],17],'Br':[[],35],'I':[[],53]}
+    for i in range(len(atoms)):
+        elements[atoms[i]][0].append(coods[i])
+    bob=[]
+    for key in keys:
+        num=len(elements[key][0])
+        if num!=0:
+            bag=np.zeros((asize[key]))
+            bag[:num]=0.5*(elements[key][1]**2.4)
+            bag=-np.sort(-bag)
+            bob.extend(bag)
+            for j in range(i,len(keys)):
+                if i==j:
+                    z=elements[key][1]
+                    bag=np.zeros((comb(asize[key],2)))
+                    vec=[]
+                    for (r1,r2) in combinations(elements[key][0],2):
+                        vec.append(z**2/np.linalg.norm(r1-r2))
+                    bag[:len(vec)]=vec
+                    bag=-np.sort(-bag)
+                    bob.extend(bag)
+                elif (i!=j) and (len(elements[keys[j]][0])!=0):
+                    z1,z2=elements[key][1],elements[keys[j]][1]
+                    bag=np.zeros((asize[key]*asize[keys[j]]))
+                    vec=[]
+                    for (r1,r2) in product(elements[key][0],elements[keys[j]][0]):
+                        vec.append(z1*z2/np.linalg.norm(r1-r2))
+                    bag[:len(vec)]=vec
+                    bag=-np.sort(-bag)
+                    bob.extend(bag)
+                else:
+                    bob.extend(np.zeros((asize[key]*asize[keys[j]])))
+        else:
+            bob.extend(np.zeros((asize[key])))
+            for j in range(i,len(keys)):
+                if i==j:
+                    bob.extend(np.zeros((comb(asize[key],2))))
+                else:
+                    bob.extend(np.zeros((asize[key]*asize[keys[j]])))
+    return np.array(bob) 
+
+from scipy.spatial.distance import cityblock, euclidean
+from scipy.stats import wasserstein_distance
+
+def get_delta_local_kernel(A,B,Q1,Q2,sigma,kernel='laplacian'):
+    
+    n1, n2 = A.shape[0], B.shape[0]
+
+    assert n1 == Q1.shape[0], "charges and representation array length mis-match"
+    assert n2 == Q2.shape[0], "charges and representation array length mis-match"
+
+    K = 0
+    
+    if kernel == 'laplacian':
+
+        for i in range(n1):
+            k=0
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = cityblock(A[i],B[j])
+                    k += np.exp(-dist/sigma)
+            K += k
+
+    elif kernel == 'gaussian':
+
+        for i in range(n1):
+            k=0
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = euclidean(A[i],B[j])
+                    k += np.exp(-dist/sigma)
+            K += k
+
+    elif kernel == 'wasserstein':
+
+        for i in range(n1):
+            k=0
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = wasserstein_distance(A[i],B[j])
+                    k += np.exp(-dist/sigma)
+            K += k
+    
+    return K
+
+def get_min_local_kernel(A,B,Q1,Q2,sigma,kernel='laplacian'):
+    
+    n1, n2 = A.shape[0], B.shape[0]
+
+    assert n1 == Q1.shape[0], "charges and representation array length mis-match"
+    assert n2 == Q2.shape[0], "charges and representation array length mis-match"
+
+    K1, K2 = 0, 0
+    
+    if kernel == 'laplacian':
+
+        for i in range(n1):
+            k= []
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = cityblock(A[i],B[j])
+                    k.append(np.exp(-dist/sigma))
+            K1 += max(k)
+        for i in range(n2):
+            k= []
+            for j in range(n1):
+                q1, q2 = Q1[j], Q2[i]
+
+                if q1==q2:
+                    dist = cityblock(A[j],B[i])
+                    k.append(np.exp(-dist/sigma))
+            K2 += max(k)
+        return min([K1,K2])
+
+    elif kernel == 'gaussian':
+
+        for i in range(n1):
+            k= []
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = euclidean(A[i],B[j])
+                    k.append(np.exp(-dist/sigma))
+            K1 += max(k)
+        for i in range(n2):
+            k= []
+            for j in range(n1):
+                q1, q2 = Q1[j], Q2[i]
+
+                if q1==q2:
+                    dist = euclidean(A[j],B[i])
+                    k.append(np.exp(-dist/sigma))
+            K2 += max(k)
+        return min([K1,K2])
+
+    elif kernel == 'wasserstein':
+
+        for i in range(n1):
+            k= []
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = wasserstein_distance(A[i],B[j])
+                    k.append(np.exp(-dist/sigma))
+            K1 += max(k)
+        for i in range(n2):
+            k= []
+            for j in range(n1):
+                q1, q2 = Q1[j], Q2[i]
+
+                if q1==q2:
+                    dist = wasserstein_distance(A[j],B[i])
+                    k.append(np.exp(-dist/sigma))
+            K2 += max(k)
+
+        return min([K1,K2])
+
+def get_max_local_kernel(A,B,Q1,Q2,sigma,kernel='laplacian'):
+    
+    n1, n2 = A.shape[0], B.shape[0]
+
+    assert n1 == Q1.shape[0], "charges and representation array length mis-match"
+    assert n2 == Q2.shape[0], "charges and representation array length mis-match"
+
+    K1, K2 = 0, 0
+    
+    if kernel == 'laplacian':
+
+        for i in range(n1):
+            k= []
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = cityblock(A[i],B[j])
+                    k.append(np.exp(-dist/sigma))
+            K1 += max(k)
+        for i in range(n2):
+            k= []
+            for j in range(n1):
+                q1, q2 = Q1[j], Q2[i]
+
+                if q1==q2:
+                    dist = cityblock(A[j],B[i])
+                    k.append(np.exp(-dist/sigma))
+            K2 += max(k)
+        return max([K1,K2])
+
+    elif kernel == 'gaussian':
+
+        for i in range(n1):
+            k= []
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = euclidean(A[i],B[j])
+                    k.append(np.exp(-dist/sigma))
+            K1 += max(k)
+        for i in range(n2):
+            k= []
+            for j in range(n1):
+                q1, q2 = Q1[j], Q2[i]
+
+                if q1==q2:
+                    dist = euclidean(A[j],B[i])
+                    k.append(np.exp(-dist/sigma))
+            K2 += max(k)
+        return max([K1,K2])
+
+    elif kernel == 'wasserstein':
+
+        for i in range(n1):
+            k= []
+            for j in range(n2):
+                q1, q2 = Q1[i], Q2[j]
+
+                if q1==q2:
+                    dist = wasserstein_distance(A[i],B[j])
+                    k.append(np.exp(-dist/sigma))
+            K1 += max(k)
+        for i in range(n2):
+            k= []
+            for j in range(n1):
+                q1, q2 = Q1[j], Q2[i]
+
+                if q1==q2:
+                    dist = wasserstein_distance(A[j],B[i])
+                    k.append(np.exp(-dist/sigma))
+            K2 += max(k)
+
+        return max([K1,K2])
