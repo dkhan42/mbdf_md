@@ -5,6 +5,9 @@ from qml.kernels import get_atomic_local_kernel, get_atomic_local_gradient_kerne
 from qml.kernels import get_local_gradient_kernel, get_local_kernel
 
 def KRR_oqml(xt, dxt, qt, et, ft, xte, dxte, qte, sigma, lam):
+    """
+    energy and forces using oqml
+    """
     kte = get_atomic_local_kernel(xt, xt, qt, qt, sigma)
     kt = get_atomic_local_gradient_kernel(xt, xt, dxt, qt, qt, sigma)
     c = np.concatenate((kte, kt))
@@ -25,7 +28,10 @@ def krr_local(rtrain, drtrain, qt, ftr, rtest, drtest, qtest, sigma, lam):
                                            qt, qtest, sigma)
     return np.dot(kte_local_grad, alpha_local)
 
-def krr_atomic(rtrain, drtrain, qt, ftr, rtest, drtest, qtest, sigma, lam):
+def krr_forces_atomic(rtrain, drtrain, qt, ftr, rtest, drtest, qtest, sigma, lam):
+    """
+    forces only using oqml (no Hessian block of the GPR matrix)
+    """
     ktr_local_grad = get_atomic_local_gradient_kernel(rtrain, rtrain, drtrain, 
                                                    qt, qt, sigma)
     alpha_local = svd_solve(ktr_local_grad, ftr.flatten().astype(float), rcond=lam)
