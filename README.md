@@ -1,5 +1,5 @@
 # mbdf_md
-molecular dynamics using mbdf
+molecular dynamics using MBDF
 
 Script for generating MBDF along with gradients
 
