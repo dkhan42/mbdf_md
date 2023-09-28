@@ -8,7 +8,7 @@ The representations should either be generated for the entire dataset together u
 ```
 from MBDF_gradients import generate_mbdf_train
 
-rep, drep, norms = generate_mbdf_norm(charges, coordinates, n_jobs = n_jobs)
+rep, drep, norms = generate_mbdf_train(charges, coordinates, n_jobs = n_jobs)
 ```
 
  or separately in the following manner (the `norms` array from the `generate_mbdf_train` function is required) :
