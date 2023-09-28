@@ -6,7 +6,7 @@ Script for generating MBDF along with gradients
 The representations should either be generated for the entire dataset together using the `generate_mbdf_train` function (you can discard the `norms` array):
 
 ```
-from MBDF_gradients import generate_mbdf_train, generate_mbdf_pred
+from MBDF_gradients import generate_mbdf_train
 
 rep, drep, norms = generate_mbdf_norm(charges, coordinates, n_jobs = n_jobs)
 ```
