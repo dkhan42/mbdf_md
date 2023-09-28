@@ -20,5 +20,8 @@ rep_train, drep_train, norms = generate_mbdf_train(charges_train, coordinates_tr
 rep_test, drep_test = generate_mbdf_pred(charges_test, coordinates_test, norms, n_jobs = n_jobs)
 ```
 
-`charges` and `coordinates` are always arrays containing arrays of molecular charges and coordinates respectively. `rep` and `drep` always denote the corresponding representations and their gradients respectively.
+`charges` and `coordinates` are always arrays containing arrays of molecular charges and coordinates respectively. 
+
+`rep` and `drep` always denote the corresponding representations and their gradients respectively.
+
 `n_jobs` is `-1` by default which means all cores will be used.
