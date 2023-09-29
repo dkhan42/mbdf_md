@@ -2,7 +2,7 @@ import numpy as np
 import numba
 from copy import deepcopy
 
-root2,ipi=2**0.5
+#root2,ipi=2**0.5
 half_rootpi=(np.pi**0.5)/2
 a2b = 1.88973
 
